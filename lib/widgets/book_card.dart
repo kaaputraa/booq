@@ -15,7 +15,9 @@ class BookCard extends StatelessWidget {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => BookDetailScreen(book: book)),
+          MaterialPageRoute(
+            builder: (context) => BookDetailScreen(bookId: book.id),
+          ), // MODIFIED
         );
       },
       child: Column(

@@ -1,107 +1,107 @@
-// lib/screens/book_detail_screen.dart
-
-import 'package:booq/models/book.dart';
-import 'package:booq/providers/book_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:booq/widgets/info_chip.dart'; // Import InfoChip
+import '../models/book.dart';
+import '../providers/book_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Tambahkan ini
 
-class BookDetailScreen extends StatelessWidget {
-  final Book book;
-  const BookDetailScreen({super.key, required this.book});
+class BookDetailScreen extends StatefulWidget {
+  final String bookId;
+
+  const BookDetailScreen({Key? key, required this.bookId}) : super(key: key);
+
+  @override
+  State<BookDetailScreen> createState() => _BookDetailScreenState();
+}
+
+class _BookDetailScreenState extends State<BookDetailScreen> {
+  bool _isAdmin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUserRole();
+  }
+
+  void _checkUserRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (doc.exists && doc.data()?['role'] == 'admin') {
+        setState(() {
+          _isAdmin = true;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final bookProvider = Provider.of<BookProvider>(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(book.title),
-        actions: [
-          Consumer<BookProvider>(
-            builder: (context, bookProvider, child) {
-              final isSaved = bookProvider.isBookSaved(book);
-              return IconButton(
-                icon: Icon(
-                  isSaved ? Icons.bookmark : Icons.bookmark_border,
-                  color: isSaved ? Colors.blue.shade700 : null,
-                ),
-                onPressed: () {
-                  bookProvider.toggleSaved(book);
-                },
-              );
-            },
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: Image.network(
-                    book.imageUrl,
-                    height: 250,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-            ),
-            Text(
-              book.title,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              'by ${book.author}',
-              style: const TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      appBar: AppBar(title: const Text('Detail Buku')),
+      body: FutureBuilder<Book?>(
+        future: bookProvider.getBookById(widget.bookId),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+            return const Center(child: Text('Buku tidak ditemukan.'));
+          }
+
+          final book = snapshot.data!;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                InfoChip(icon: Icons.star, label: '${book.rating}'),
-                InfoChip(icon: Icons.pages, label: '${book.pages} Pages'),
-                InfoChip(icon: Icons.language, label: book.language),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Description',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                Text(
+                  'Judul: ${book.title}',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(height: 8),
+                ),
+                Text('Penulis: ${book.author}'),
+                Text('Deskripsi: ${book.description}'),
+                // Tambahkan kode QR jika admin
+                if (_isAdmin) ...[
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Kode QR Buku (untuk dicetak):',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  Center(
+                    child: QrImageView(
+                      data: book.id, // Data yang akan dienkode adalah ID buku
+                      version: QrVersions.auto,
+                      size: 200.0,
+                      gapless: false,
+                      errorStateBuilder: (cxt, err) {
+                        return const Center(
+                          child: Text(
+                            'Oops! Gagal membuat QR Code.',
+                            textAlign: TextAlign.center,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   Text(
-                    book.description,
-                    textAlign: TextAlign.justify,
-                    style: const TextStyle(fontSize: 16, color: Colors.black54),
+                    'ID Buku: ${book.id}',
+                    style: const TextStyle(fontSize: 14),
                   ),
                 ],
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ElevatedButton(
-          onPressed: () {},
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue.shade700,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          child: const Text(
-            'Read Now',
-            style: TextStyle(fontSize: 18, color: Colors.white),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

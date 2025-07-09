@@ -43,6 +43,23 @@ class BookProvider with ChangeNotifier {
     }
   }
 
+  // NEW METHOD: Get Book by ID
+  Future<Book?> getBookById(String bookId) async {
+    try {
+      DocumentSnapshot<Map<String, dynamic>> doc = await _db
+          .collection('books')
+          .doc(bookId)
+          .get();
+      if (doc.exists) {
+        return Book.fromFirestore(doc);
+      }
+      return null;
+    } catch (e) {
+      print("Error getting book by ID: $e");
+      return null;
+    }
+  }
+
   // ---- Metode untuk Menambahkan Buku ke Firestore ----
   Future<void> addBookToFirestore(Book book) async {
     try {

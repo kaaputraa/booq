@@ -6,17 +6,29 @@ import 'package:provider/provider.dart';
 
 import 'pages/login_page.dart';
 import 'pages/admin_page.dart';
-import 'screens/home_screen.dart';
-import 'screens/saved_list_screen.dart';
+import 'screens/home_screen.dart'; // Import HomeScreen yang sudah ada
+import 'screens/saved_list_screen.dart'; // Import SavedListScreen yang sudah ada
 import 'providers/book_provider.dart';
+import 'providers/lending_provider.dart';
+import 'firebase_options.dart'; // Penting: Import firebase_options.dart
+
+// Import screen scanner yang baru dibuat untuk pengguna
+import 'screens/qr_scanner_user_borrow_screen.dart'; // Perbaikan path
+// Import screen untuk melihat buku yang dipinjam oleh pengguna (opsional)
+import 'screens/user_borrowed_books_screen.dart'; // Perbaikan path
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform, // Perbaikan di sini
+  );
 
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => BookProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => BookProvider()),
+        ChangeNotifierProvider(create: (_) => LendingProvider()),
+      ],
       child: const MyApp(),
     ),
   );
@@ -88,7 +100,7 @@ class AuthWrapper extends StatelessWidget {
 }
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  const MainScreen({Key? key}) : super(key: key);
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -96,11 +108,40 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
+  bool _isAdmin = false;
 
-  static const List<Widget> _widgetOptions = <Widget>[
-    HomeScreen(),
-    SavedListScreen(),
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUserRole().then((_) {
+      // Inisialisasi _pages setelah _isAdmin diketahui
+      _pages = [
+        const HomeScreen(), // Menggunakan HomeScreen yang sudah ada
+        const SavedListScreen(), // Menggunakan SavedListScreen (asumsi daftar buku)
+        const QrScannerUserBorrowScreen(), // Halaman scanner QR untuk pengguna
+        const UserBorrowedBooksScreen(), // Halaman buku pinjaman pengguna
+        const Center(
+          child: Text('Profil Pengguna'),
+        ), // Placeholder untuk Profil
+      ];
+      setState(() {});
+    });
+  }
+
+  Future<void> _checkUserRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (doc.exists && doc.data()?['role'] == 'admin') {
+        _isAdmin = true;
+      }
+    }
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -108,57 +149,61 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-      (Route<dynamic> route) => false,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    // Pastikan _pages sudah diinisialisasi sebelum digunakan
+    if (_pages == null || _pages.isEmpty) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'BooQ',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ), // Judul di AppBar utama
+        title: const Text('Perpustakaan Booq'),
         actions: [
           IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.search),
-          ), // Tombol Search
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_outlined),
-          ), // Tombol Notifikasi
-          IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: _logout, // Tombol Logout
-            tooltip: "Logout",
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              // Mengarahkan ke halaman login setelah logout
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+              );
+            },
           ),
         ],
       ),
-      body: Center(child: _widgetOptions.elementAt(_selectedIndex)),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bookmark_border),
-            activeIcon: Icon(Icons.bookmark),
-            label: 'Saved',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        selectedItemColor: Colors.blue.shade700,
-      ),
+      body: _pages[_selectedIndex],
+      bottomNavigationBar:
+          !_isAdmin // Hanya tampilkan BottomNavigationBar jika bukan admin
+          ? BottomNavigationBar(
+              items: const <BottomNavigationBarItem>[
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home),
+                  label: 'Beranda',
+                ),
+                BottomNavigationBarItem(icon: Icon(Icons.book), label: 'Buku'),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.qr_code_scanner), // Ikon scanner
+                  label: 'Pinjam',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.menu_book), // Ikon buku pinjaman
+                  label: 'Pinjaman Saya',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person),
+                  label: 'Profil',
+                ),
+              ],
+              currentIndex: _selectedIndex,
+              selectedItemColor: Colors.blue,
+              unselectedItemColor:
+                  Colors.grey, // Tambahkan ini agar ikon tidak aktif terlihat
+              onTap: _onItemTapped,
+              type: BottomNavigationBarType
+                  .fixed, // Penting jika item lebih dari 3
+            )
+          : null, // Jika admin, tidak tampilkan BottomNavigationBar ini
     );
   }
 }

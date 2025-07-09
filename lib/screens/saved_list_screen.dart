@@ -77,7 +77,8 @@ class SavedListScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => BookDetailScreen(book: book),
+                      builder: (context) =>
+                          BookDetailScreen(bookId: book.id), // MODIFIED
                     ),
                   );
                 },
