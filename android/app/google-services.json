@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "966907468865",
+    "project_id": "mobileqr-26132",
+    "storage_bucket": "mobileqr-26132.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:966907468865:android:3df23517ab29fda92fbac0",
+        "android_client_info": {
+          "package_name": "com.kelompok5.booq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAs6906KyaicxxgUJkzrc8ue8gn4Dp5BQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
